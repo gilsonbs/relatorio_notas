@@ -1,0 +1,18 @@
+export const KNOWN_SUPPLIERS = [
+  "MILLENIUM",
+  "PROFARMA",
+  "SANTA CRUZ",
+  "FEF",
+  "PANPHARMA",
+  "FARMALOG",
+  "VITALY",
+  "BVAL",
+  "PONTELAND",
+  "EMEFARMA",
+  "CIMED",
+  "KNIM",
+  "DPC",
+  "ALCAPLAS",
+  "DISK MED",
+  "BARCELOS",
+] as const;
