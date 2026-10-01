@@ -70,3 +70,45 @@ describe("Fornecedor", () => {
     });
   });
 });
+
+describe("DANFE fotografado com colunas", () => {
+  it("reconhece número junto da coluna NF-e", () => {
+    expect(
+      parseInvoiceNumber(
+        "DANFE\nSAC: 0800 000 0000 N 765432 NF-e www.exemplo.test\nSÉRIE 4",
+      ),
+    ).toBe("765432");
+  });
+  it("reconhece logotipo sem espaço entre as palavras", () => {
+    expect(identifySupplier("SantaCruz\nDistribuidora de Medicamentos")).toBe(
+      "SANTA CRUZ",
+    );
+  });
+  it("localiza emissão com outra coluna entre o rótulo e a data", () => {
+    expect(
+      parseIssueDate(
+        "NOME / RAZÃO SOCIAL CNPJ/CPF DATA DE DASSÃO\nCLIENTE EXEMPLO 11.111.111/0001-11 15/08/2025\nDATA DE ENTRADA/SAÍDA\n16/08/2025",
+      ),
+    ).toBe("2025-08-15");
+  });
+  it("não usa saída, protocolo ou dígitos corrigidos como emissão", () => {
+    expect(
+      parseIssueDate("DATA DE EMISSÃO\nDATA DE ENTRADA/SAÍDA\n16/08/2025"),
+    ).toBe("");
+    expect(
+      parseIssueDate("PROTOCOLO DE AUTORIZAÇÃO 123456789 15/08/2025"),
+    ).toBe("");
+    expect(parseIssueDate("DATA DE EMISSÃO\n15/08/2O25")).toBe("");
+  });
+});
+
+it("usa a coluna de consulta e série quando o rótulo do número fica ilegível", () => {
+  expect(
+    parseInvoiceNumber(
+      'DANFE\nSAC 0800 000 0000 " 765432 NF-e www.exemplo.test\nwww.emitente.test SÉRIE 4',
+    ),
+  ).toBe("765432");
+  expect(parseInvoiceNumber("DANFE\nTOTAL 765432 NF-e www.exemplo.test")).toBe(
+    "",
+  );
+});

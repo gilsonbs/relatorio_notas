@@ -9,3 +9,5 @@ public/ocr/
 
 test-results/
 playwright-report/
+
+.local/

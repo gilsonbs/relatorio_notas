@@ -27,10 +27,27 @@ export function parseInvoiceNumber(text: string): string {
     `^\\s*${label}[:#-]?\\s*${number}(?:\\s*(?:SERIE\\b.*)?|\\s*)$`,
     "gm",
   );
+  const header = source.split(/DESTINATARIO|DADOS\s+DO[S]?\s+PRODUTO/)[0];
+  // O OCR pode unir o número à coluna vizinha com a referência à NF-e.
+  const inline = new RegExp(
+    `\\b${label}[:#-]?\\s*${number}(?=\\s+(?:NF[ -]?E|SERIE)\\b)`,
+    "g",
+  );
+  // Em DANFEs, o rótulo Nº pode virar pontuação; a coluna de consulta
+  // NF-e e a série logo abaixo delimitam o número sem usar outros valores.
+  const besideConsultation = new RegExp(
+    `(?:^|\\s)${number}(?=\\s+NF[ -]?E\\s+WWW\\.[^\\n]*\\n[^\\n]*\\bSERIE\\s+\\d)`,
+    "gm",
+  );
+  const consultation = /\bDANFE\b/.test(header)
+    ? [...header.matchAll(besideConsultation)]
+    : [];
   return unique(
-    [...source.matchAll(standalone)].map((match) =>
-      match[1].replace(/\./g, ""),
-    ),
+    [
+      ...header.matchAll(standalone),
+      ...header.matchAll(inline),
+      ...consultation,
+    ].map((match) => match[1].replace(/\./g, "")),
   );
 }
 function parseDateToken(token: string) {
@@ -46,10 +63,24 @@ function parseDateToken(token: string) {
 export function parseIssueDate(text: string): string {
   const source = fold(text);
   const values: string[] = [];
-  const pattern =
-    /(?:DATA\s+(?:DE\s+|DA\s+)?)?EMISSAO\s*[:\-]?\s*(\d{4}-\d{2}-\d{2}|\d{1,2}[/.\-]\d{1,2}[/.\-]\d{4})(?!\d)/g;
-  for (const match of source.matchAll(pattern))
-    values.push(parseDateToken(match[1]));
+  // Somente rótulos de emissão. Tolerância restrita a letras mal reconhecidas
+  // após "DATA DE", sem corrigir ou inferir dígitos da própria data.
+  const labels = /\b(?:EMISSAO|DATA\s+(?:D[EA]\s+)?[A-Z1]{1,3}SSAO)\b/g;
+  const datePattern =
+    /(?<!\d)(\d{4}-\d{2}-\d{2}|\d{1,2}[/.\-]\d{1,2}[/.\-]\d{4})(?!\d)/g;
+  for (const label of source.matchAll(labels)) {
+    const following = source
+      .slice(label.index! + label[0].length)
+      .split(/\r?\n/)
+      .filter((line) => line.trim())
+      .slice(0, 2)
+      .join("\n");
+    const bounded = following.split(
+      /\b(?:(?:DATA\s+(?:D[EA]\s+)?)?(?:ENTRADA|SAIDA|RECEBIMENTO|VENCIMENTO)|PROTOCOLO|EMISSAO)\b/,
+    )[0];
+    for (const match of bounded.matchAll(datePattern))
+      values.push(parseDateToken(match[1]));
+  }
   return unique(values);
 }
 export function identifySupplier(text: string): string {
@@ -58,7 +89,7 @@ export function identifySupplier(text: string): string {
     /DESTINATARIO\s*[/\-]?\s*REMETENTE|DESTINATARIO|DADOS\s+DOS\s+PRODUTOS/,
   )[0];
   const known = KNOWN_SUPPLIERS.filter((supplier) =>
-    new RegExp(`\\b${supplier.replace(/ /g, "\\s+")}\\b`).test(source),
+    new RegExp(`\\b${supplier.replace(/ /g, "\\s*")}\\b`).test(source),
   );
   if (known.length) return unique([...known]);
   const explicit =
